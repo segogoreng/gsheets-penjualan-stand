@@ -1,0 +1,10 @@
+# Ignore all files by default
+**
+
+# Except these:
+!appsscript.json
+!build/*.js
+
+# Always ignore these
+.git/**
+node_modules/**

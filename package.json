@@ -1,0 +1,29 @@
+{
+  "name": "penjualan-stand",
+  "version": "1.0.0",
+  "description": "Google Apps Script penjualan stand for Google Sheets",
+  "type": "module",
+  "scripts": {
+    "build": "rollup -c",
+    "push": "npm run build && clasp push",
+    "open": "clasp open",
+    "lint": "eslint src --fix",
+    "format": "prettier --write src"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.23.0",
+    "@babel/preset-env": "^7.23.0",
+    "@babel/preset-typescript": "^7.23.0",
+    "@eslint/js": "^9.0.0",
+    "@google/clasp": "^2.4.2",
+    "@rollup/plugin-babel": "^6.0.4",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@types/google-apps-script": "^1.0.83",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.2.0",
+    "rollup": "^4.9.0",
+    "typescript": "^5.3.3",
+    "typescript-eslint": "^8.0.0"
+  }
+}

@@ -19,7 +19,7 @@ export default [
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
-          varsIgnorePattern: '^(onOpen|calculateAndDisplaySum|generateReport)$',
+          varsIgnorePattern: '^(onOpen|copyDynamicRange|hapusNilaiDariRentang|setFormulasBatch|setProfitBatch|isiFormulasticker|isiFormulaProfitSticker|processYellowRows)$',
         },
       ],
     },

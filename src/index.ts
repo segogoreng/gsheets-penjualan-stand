@@ -2,7 +2,7 @@ const sourceSpreadsheetId = '1RDYyrHPdoI_hYOxqT52HjIvgk5TponJkSIglx_fO0VE'; // I
 const targetSpreadsheetId = '1eIOD7Xl_wcMmZS83jTog1ilHM3shkWxg-0xfyw4PdoU'; // ID file tujuan "Copy of Rekap yumbento PTC 2025"
 const targetSheetName = "des'25"; // perlu diganti sesuai bulan yg dikerjakan sesuai nama sheet tujuan
 
-function onOpen() {
+function onOpen(): void {
     const ui = SpreadsheetApp.getUi();
     // Add a new menu to the spreadsheet.
     ui.createMenu('Custom Menu')
@@ -17,7 +17,7 @@ function onOpen() {
         .addToUi();
 }
 
-function copyDynamicRange() {
+function copyDynamicRange(): void {
     const ui = SpreadsheetApp.getUi();
 
     // --- Input dari user ---
@@ -45,21 +45,32 @@ function copyDynamicRange() {
         targetColumn + startRow + ':' + targetColumn + endRow;
 
     // Ambil data dari sheet sumber
-    const sourceRange = SpreadsheetApp.openById(sourceSpreadsheetId)
-        .getSheetByName(sourceSheetName)
-        .getRange(sourceRangeString)
-        .getValues();
+    const sourceSheet =
+        SpreadsheetApp.openById(sourceSpreadsheetId).getSheetByName(
+            sourceSheetName
+        );
+    if (!sourceSheet) {
+        ui.alert('Sheet sumber tidak ditemukan: ' + sourceSheetName);
+        return;
+    }
+    const sourceRange = sourceSheet.getRange(sourceRangeString).getValues();
 
     // Tempelkan ke sheet tujuan dengan baris sama
-    SpreadsheetApp.openById(targetSpreadsheetId)
-        .getSheetByName(targetSheetName)
-        .getRange(targetRangeString)
-        .setValues(sourceRange);
+    const targetSheet =
+        SpreadsheetApp.openById(targetSpreadsheetId).getSheetByName(
+            targetSheetName
+        );
+    if (!targetSheet) {
+        ui.alert('Sheet tujuan tidak ditemukan: ' + targetSheetName);
+        return;
+    }
+    targetSheet.getRange(targetRangeString).setValues(sourceRange);
 }
 
-function hapusNilaiDariRentang() {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    const ranges = [
+function hapusNilaiDariRentang(): void {
+    const sheet: GoogleAppsScript.Spreadsheet.Sheet =
+        SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    const ranges: string[] = [
         'D',
         'G',
         'J',
@@ -97,11 +108,12 @@ function hapusNilaiDariRentang() {
     });
 }
 
-function setFormulasBatch() {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    const startRow = 2;
-    const endRow = 380;
-    const columns = [
+function setFormulasBatch(): void {
+    const sheet: GoogleAppsScript.Spreadsheet.Sheet =
+        SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    const startRow: number = 2;
+    const endRow: number = 380;
+    const columns: string[] = [
         'E',
         'H',
         'K',
@@ -134,7 +146,7 @@ function setFormulasBatch() {
         'CN',
         'CQ',
     ]; // List of columns where formulas will be set
-    const refColumns = [
+    const refColumns: string[] = [
         'D',
         'G',
         'J',
@@ -168,11 +180,11 @@ function setFormulasBatch() {
         'CP',
     ]; // List of reference columns
 
-    for (let colIndex = 0; colIndex < columns.length; colIndex++) {
-        const formulas = [];
-        const col = columns[colIndex];
-        const refCol = refColumns[colIndex];
-        for (let i = startRow; i <= endRow; i++) {
+    for (let colIndex: number = 0; colIndex < columns.length; colIndex++) {
+        const formulas: string[][] = [];
+        const col: string = columns[colIndex];
+        const refCol: string = refColumns[colIndex];
+        for (let i: number = startRow; i <= endRow; i++) {
             formulas.push(['=' + refCol + i + '*$C' + i]);
         }
         sheet
@@ -181,11 +193,12 @@ function setFormulasBatch() {
     }
 }
 
-function setProfitBatch() {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    const startRow = 2;
-    const endRow = 380;
-    const columns = [
+function setProfitBatch(): void {
+    const sheet: GoogleAppsScript.Spreadsheet.Sheet =
+        SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    const startRow: number = 2;
+    const endRow: number = 380;
+    const columns: string[] = [
         'F',
         'I',
         'L',
@@ -218,7 +231,7 @@ function setProfitBatch() {
         'CO',
         'CR',
     ]; // List of reference columns
-    const refColumns = [
+    const refColumns: string[] = [
         'E',
         'H',
         'K',
@@ -251,7 +264,7 @@ function setProfitBatch() {
         'CN',
         'CQ',
     ]; // List of columns where formulas will be set
-    const twoColumns = [
+    const twoColumns: string[] = [
         'D',
         'G',
         'J',
@@ -285,12 +298,12 @@ function setProfitBatch() {
         'CP',
     ]; // List of reference columns
 
-    for (let colIndex = 0; colIndex < columns.length; colIndex++) {
-        const formulas = [];
-        const col = columns[colIndex];
-        const refCol = refColumns[colIndex];
-        const twoCol = twoColumns[colIndex];
-        for (let i = startRow; i <= endRow; i++) {
+    for (let colIndex: number = 0; colIndex < columns.length; colIndex++) {
+        const formulas: string[][] = [];
+        const col: string = columns[colIndex];
+        const refCol: string = refColumns[colIndex];
+        const twoCol: string = twoColumns[colIndex];
+        for (let i: number = startRow; i <= endRow; i++) {
             formulas.push([
                 '=' + refCol + i + '- (' + twoCol + i + '*$B' + i + ')',
             ]);
@@ -301,22 +314,23 @@ function setProfitBatch() {
     }
 }
 
-function isiFormulasticker() {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    const columns = ['E', 'H', 'K']; // Kolom spesifik
-    const lastColumn = 'CN'; // Kolom terakhir
+function isiFormulasticker(): void {
+    const sheet: GoogleAppsScript.Spreadsheet.Sheet =
+        SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    const columns: string[] = ['E', 'H', 'K']; // Kolom spesifik
+    const lastColumn: string = 'CN'; // Kolom terakhir
 
     // Mengisi kolom yang spesifik dulu
-    columns.forEach(function (col) {
+    columns.forEach(function (col: string): void {
         sheet.getRange(col + '297').setFormula('=' + col + '285');
     });
 
     // Mengisi dari kolom berikutnya (L) sampai CN
-    const startCol = sheet.getRange('L1').getColumn();
-    const endCol = sheet.getRange(lastColumn + '1').getColumn();
+    const startCol: number = sheet.getRange('L1').getColumn();
+    const endCol: number = sheet.getRange(lastColumn + '1').getColumn();
 
-    for (let col = startCol; col <= endCol; col++) {
-        const colLetter = sheet
+    for (let col: number = startCol; col <= endCol; col++) {
+        const colLetter: string = sheet
             .getRange(1, col)
             .getA1Notation()
             .replace(/\d/g, ''); // Dapatkan huruf kolom
@@ -324,27 +338,34 @@ function isiFormulasticker() {
     }
 }
 
-function isiFormulaProfitSticker() {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    const startColumn = 'F'; // Kolom awal
-    const endColumn = 'CR'; // Kolom akhir
-    const step = 3; // Selisih antar kolom (F, I, L, ...)
+function isiFormulaProfitSticker(): void {
+    const sheet: GoogleAppsScript.Spreadsheet.Sheet =
+        SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    const startColumn: string = 'F'; // Kolom awal
+    const endColumn: string = 'CR'; // Kolom akhir
+    const step: number = 3; // Selisih antar kolom (F, I, L, ...)
 
-    const startColIndex = sheet.getRange(startColumn + '1').getColumn();
-    const endColIndex = sheet.getRange(endColumn + '1').getColumn();
+    const startColIndex: number = sheet.getRange(startColumn + '1').getColumn();
+    const endColIndex: number = sheet.getRange(endColumn + '1').getColumn();
 
-    for (let col = startColIndex; col <= endColIndex; col += step) {
-        const cell234 = sheet.getRange(297, col); // Baris 234, kolom ke-X
-        const cell216 = sheet.getRange(285, col); // Baris 216, kolom ke-X
+    for (let col: number = startColIndex; col <= endColIndex; col += step) {
+        const cell234: GoogleAppsScript.Spreadsheet.Range = sheet.getRange(
+            297,
+            col
+        ); // Baris 234, kolom ke-X
+        const cell216: GoogleAppsScript.Spreadsheet.Range = sheet.getRange(
+            285,
+            col
+        ); // Baris 216, kolom ke-X
         cell234.setFormula('=' + cell216.getA1Notation()); // Masukkan formula
     }
 }
 
-function processYellowRows() {
+function processYellowRows(): void {
     try {
         // Get source sheet name from user
-        const ui = SpreadsheetApp.getUi();
-        const response = ui.prompt(
+        const ui: GoogleAppsScript.Base.Ui = SpreadsheetApp.getUi();
+        const response: GoogleAppsScript.Base.PromptResponse = ui.prompt(
             'Source Sheet Name',
             'Please enter the source sheet name:',
             ui.ButtonSet.OK_CANCEL
@@ -354,18 +375,22 @@ function processYellowRows() {
             return; // User cancelled
         }
 
-        const sourceSheetName = response.getResponseText().trim();
+        const sourceSheetName: string = response.getResponseText().trim();
         if (!sourceSheetName) {
             ui.alert('Error', 'Sheet name cannot be empty!', ui.ButtonSet.OK);
             return;
         }
 
-        const sourceSpreadsheet = SpreadsheetApp.openById(sourceSpreadsheetId);
-        const destSpreadsheet = SpreadsheetApp.openById(targetSpreadsheetId);
+        const sourceSpreadsheet: GoogleAppsScript.Spreadsheet.Spreadsheet =
+            SpreadsheetApp.openById(sourceSpreadsheetId);
+        const destSpreadsheet: GoogleAppsScript.Spreadsheet.Spreadsheet =
+            SpreadsheetApp.openById(targetSpreadsheetId);
 
         // Get the sheets
-        const sourceSheet = sourceSpreadsheet.getSheetByName(sourceSheetName);
-        const destSheet = destSpreadsheet.getSheetByName(targetSheetName);
+        const sourceSheet: GoogleAppsScript.Spreadsheet.Sheet | null =
+            sourceSpreadsheet.getSheetByName(sourceSheetName);
+        const destSheet: GoogleAppsScript.Spreadsheet.Sheet | null =
+            destSpreadsheet.getSheetByName(targetSheetName);
 
         if (!sourceSheet) {
             ui.alert(
@@ -379,20 +404,23 @@ function processYellowRows() {
         if (!destSheet) {
             ui.alert(
                 'Error',
-                `Sheet "sept\'25" not found in destination spreadsheet!`,
+                `Sheet "sept'25" not found in destination spreadsheet!`,
                 ui.ButtonSet.OK
             );
             return;
         }
 
         // Start scanning from row 2
-        let currentRow = 2;
-        let processedCount = 0;
+        let currentRow: number = 2;
+        let processedCount: number = 0;
 
         while (true) {
             // Get the value in column A
-            const cellA = sourceSheet.getRange(currentRow, 1);
-            const valueA = cellA.getValue();
+            const cellA: GoogleAppsScript.Spreadsheet.Range = sourceSheet.getRange(
+                currentRow,
+                1
+            );
+            const valueA: unknown = cellA.getValue();
 
             // Check if we've reached an empty cell - stop processing
             if (!valueA || valueA === '') {
@@ -400,10 +428,10 @@ function processYellowRows() {
             }
 
             // Check if the background color is yellow
-            const backgroundColor = cellA.getBackground();
+            const backgroundColor: string = cellA.getBackground();
 
             // Common yellow color codes in Google Sheets
-            const yellowColors = [
+            const yellowColors: string[] = [
                 '#ffff00',
                 '#ffff99',
                 '#fff2cc',
@@ -411,13 +439,16 @@ function processYellowRows() {
                 '#ffd966',
                 '#f9cb9c',
             ];
-            const isYellow = yellowColors.some(
-                (color) => backgroundColor.toLowerCase() === color.toLowerCase()
+            const isYellow: boolean = yellowColors.some(
+                (color: string): boolean =>
+                    backgroundColor.toLowerCase() === color.toLowerCase()
             );
 
             if (isYellow) {
                 // Get values from columns A and B
-                const valueB = sourceSheet.getRange(currentRow, 2).getValue();
+                const valueB: unknown = sourceSheet
+                    .getRange(currentRow, 2)
+                    .getValue();
 
                 // Insert new row at the same position in destination sheet
                 destSheet.insertRowBefore(currentRow);
@@ -454,11 +485,13 @@ function processYellowRows() {
                 `Last row checked: ${currentRow - 1}`,
             ui.ButtonSet.OK
         );
-    } catch (error) {
+    } catch (error: unknown) {
+        const errorMessage =
+            error instanceof Error ? error.message : String(error);
         console.error('Error in processYellowRows:', error);
         SpreadsheetApp.getUi().alert(
             'Error',
-            'An error occurred: ' + error.toString(),
+            'An error occurred: ' + errorMessage,
             SpreadsheetApp.getUi().ButtonSet.OK
         );
     }

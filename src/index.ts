@@ -1,5 +1,11 @@
-const sourceSpreadsheetId = '1RDYyrHPdoI_hYOxqT52HjIvgk5TponJkSIglx_fO0VE'; // ID file sumber "Copy of YUMBENTO PTC AGUSTUS 2025"
-const targetSpreadsheetId = '1eIOD7Xl_wcMmZS83jTog1ilHM3shkWxg-0xfyw4PdoU'; // ID file tujuan "Copy of Rekap yumbento PTC 2025"
+import {
+    extractMonthAbbreviation,
+    buildSourceSheetName,
+    dayToColumnIndex,
+    parseDateRange,
+} from './helpers';
+
+const sourceSpreadsheetId = '1B5kwiYri3x3qNde1gnpi9K9Bwk3Ruh8JtGuKptBz12Q'; // ID file sumber "Copy of YUMBENTO PTC AGUSTUS 2025"
 const targetSheetName = "des'25"; // perlu diganti sesuai bulan yg dikerjakan sesuai nama sheet tujuan
 
 function onOpen(): void {
@@ -11,9 +17,13 @@ function onOpen(): void {
         .addItem('profit', 'setProfitBatch')
         .addItem('isi formula sticker', 'isiFormulasticker')
         .addItem('Profit Sticker', 'isiFormulaProfitSticker')
-        .addItem('Masukkan data penjualan', 'copyDynamicRange')
-        .addItem('masukkan barang baru', 'processYellowRows')
-
+        .addItem(
+            'Proses Data Penjualan (Multi-Tanggal)',
+            'processMultipleDates'
+        )
+        .addSeparator()
+        .addItem('Masukkan data penjualan (Manual)', 'copyDynamicRange')
+        .addItem('masukkan barang baru (Manual)', 'processYellowRows')
         .addToUi();
 }
 
@@ -57,9 +67,7 @@ function copyDynamicRange(): void {
 
     // Tempelkan ke sheet tujuan dengan baris sama
     const targetSheet =
-        SpreadsheetApp.openById(targetSpreadsheetId).getSheetByName(
-            targetSheetName
-        );
+        SpreadsheetApp.getActiveSpreadsheet().getSheetByName(targetSheetName);
     if (!targetSheet) {
         ui.alert('Sheet tujuan tidak ditemukan: ' + targetSheetName);
         return;
@@ -384,7 +392,7 @@ function processYellowRows(): void {
         const sourceSpreadsheet: GoogleAppsScript.Spreadsheet.Spreadsheet =
             SpreadsheetApp.openById(sourceSpreadsheetId);
         const destSpreadsheet: GoogleAppsScript.Spreadsheet.Spreadsheet =
-            SpreadsheetApp.openById(targetSpreadsheetId);
+            SpreadsheetApp.getActiveSpreadsheet();
 
         // Get the sheets
         const sourceSheet: GoogleAppsScript.Spreadsheet.Sheet | null =
@@ -416,10 +424,8 @@ function processYellowRows(): void {
 
         while (true) {
             // Get the value in column A
-            const cellA: GoogleAppsScript.Spreadsheet.Range = sourceSheet.getRange(
-                currentRow,
-                1
-            );
+            const cellA: GoogleAppsScript.Spreadsheet.Range =
+                sourceSheet.getRange(currentRow, 1);
             const valueA: unknown = cellA.getValue();
 
             // Check if we've reached an empty cell - stop processing
@@ -495,4 +501,300 @@ function processYellowRows(): void {
             SpreadsheetApp.getUi().ButtonSet.OK
         );
     }
+}
+
+// Helper: Find last non-empty row in a column
+function getLastNonEmptyRow(
+    sheet: GoogleAppsScript.Spreadsheet.Sheet,
+    column: number = 1
+): number {
+    const data = sheet.getRange(1, column, sheet.getMaxRows(), 1).getValues();
+    for (let i = data.length - 1; i >= 0; i--) {
+        if (data[i][0] !== '' && data[i][0] !== null) {
+            return i + 1;
+        }
+    }
+    return 0;
+}
+
+// Interface for validation result
+interface ValidationResult {
+    isValid: boolean;
+    mismatches: Array<{
+        row: number;
+        sourceValue: string;
+        targetValue: string;
+    }>;
+}
+
+// Validate that product names (column A) match between source and target sheets
+function validateProductNames(
+    sourceSheet: GoogleAppsScript.Spreadsheet.Sheet,
+    targetSheet: GoogleAppsScript.Spreadsheet.Sheet,
+    endRow: number
+): ValidationResult {
+    const startRow = 2;
+    const sourceNames = sourceSheet
+        .getRange(startRow, 1, endRow - startRow + 1, 1)
+        .getValues();
+    const targetNames = targetSheet
+        .getRange(startRow, 1, endRow - startRow + 1, 1)
+        .getValues();
+
+    const mismatches: ValidationResult['mismatches'] = [];
+
+    for (let i = 0; i < sourceNames.length; i++) {
+        const sourceVal = String(sourceNames[i][0]).trim();
+        const targetVal = String(targetNames[i][0]).trim();
+
+        // Skip if both are empty
+        if (sourceVal === '' && targetVal === '') {
+            continue;
+        }
+
+        if (sourceVal !== targetVal) {
+            mismatches.push({
+                row: startRow + i,
+                sourceValue: sourceVal,
+                targetValue: targetVal,
+            });
+        }
+    }
+
+    return {
+        isValid: mismatches.length === 0,
+        mismatches,
+    };
+}
+
+// Process yellow rows for a single day (extracted from processYellowRows, no UI prompts)
+function processYellowRowsForDay(
+    sourceSheet: GoogleAppsScript.Spreadsheet.Sheet,
+    destSheet: GoogleAppsScript.Spreadsheet.Sheet
+): number {
+    let currentRow = 2;
+    let processedCount = 0;
+
+    const yellowColors = [
+        '#ffff00',
+        '#ffff99',
+        '#fff2cc',
+        '#fffacd',
+        '#ffd966',
+        '#f9cb9c',
+    ];
+
+    while (true) {
+        const cellA = sourceSheet.getRange(currentRow, 1);
+        const valueA = cellA.getValue();
+
+        if (!valueA || valueA === '') {
+            break;
+        }
+
+        const backgroundColor = cellA.getBackground().toLowerCase();
+        const isYellow = yellowColors.some(
+            (color) => backgroundColor === color.toLowerCase()
+        );
+
+        if (isYellow) {
+            const valueB = sourceSheet.getRange(currentRow, 2).getValue();
+            destSheet.insertRowBefore(currentRow);
+            destSheet.getRange(currentRow, 1).setValue(valueA);
+            destSheet.getRange(currentRow, 3).setValue(valueB);
+            processedCount++;
+        }
+
+        currentRow++;
+
+        if (currentRow > 10000) {
+            break;
+        }
+    }
+
+    return processedCount;
+}
+
+// Copy sales data for a single day (extracted from copyDynamicRange, no UI prompts)
+function copySalesDataForDay(
+    sourceSheet: GoogleAppsScript.Spreadsheet.Sheet,
+    targetSheet: GoogleAppsScript.Spreadsheet.Sheet,
+    endRow: number,
+    targetColumnIndex: number
+): number {
+    const startRow = 2;
+    const sourceColumn = 4; // Column D
+
+    const sourceData = sourceSheet
+        .getRange(startRow, sourceColumn, endRow - startRow + 1, 1)
+        .getValues();
+
+    targetSheet
+        .getRange(startRow, targetColumnIndex, endRow - startRow + 1, 1)
+        .setValues(sourceData);
+
+    return endRow - startRow + 1;
+}
+
+// Interface for processing summary
+interface ProcessingSummary {
+    daysProcessed: number;
+    totalNewProducts: number;
+    totalSalesRowsCopied: number;
+    warnings: string[];
+}
+
+// Main combined function: process multiple dates with validation
+function processMultipleDates(): void {
+    const ui = SpreadsheetApp.getUi();
+
+    // Step 1: Get date range from user
+    const response = ui.prompt(
+        'Masukkan Rentang Tanggal',
+        'Format: "1-3" untuk tanggal 1 sampai 3, atau "5" untuk tanggal 5 saja:',
+        ui.ButtonSet.OK_CANCEL
+    );
+
+    if (response.getSelectedButton() !== ui.Button.OK) {
+        return;
+    }
+
+    // Step 2: Parse date range
+    const dateRange = parseDateRange(response.getResponseText());
+    if (!dateRange) {
+        ui.alert(
+            'Error',
+            'Format tanggal tidak valid. Gunakan format "1-3" atau "5".',
+            ui.ButtonSet.OK
+        );
+        return;
+    }
+
+    // Step 3: Extract month abbreviation
+    let monthAbbr: string;
+    try {
+        monthAbbr = extractMonthAbbreviation(targetSheetName);
+    } catch {
+        ui.alert(
+            'Error',
+            `Tidak dapat mengekstrak bulan dari targetSheetName: ${targetSheetName}`,
+            ui.ButtonSet.OK
+        );
+        return;
+    }
+
+    // Step 4: Open spreadsheets once
+    const sourceSpreadsheet = SpreadsheetApp.openById(sourceSpreadsheetId);
+    const targetSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const targetSheet = targetSpreadsheet.getSheetByName(targetSheetName);
+
+    if (!targetSheet) {
+        ui.alert(
+            'Error',
+            `Sheet tujuan "${targetSheetName}" tidak ditemukan!`,
+            ui.ButtonSet.OK
+        );
+        return;
+    }
+
+    // Step 5: Initialize summary
+    const summary: ProcessingSummary = {
+        daysProcessed: 0,
+        totalNewProducts: 0,
+        totalSalesRowsCopied: 0,
+        warnings: [],
+    };
+
+    // Step 6: Process each day
+    for (let day = dateRange.start; day <= dateRange.end; day++) {
+        const sourceSheetName = buildSourceSheetName(day, monthAbbr);
+        const sourceSheet = sourceSpreadsheet.getSheetByName(sourceSheetName);
+
+        // Check if source sheet exists
+        if (!sourceSheet) {
+            summary.warnings.push(
+                `Sheet "${sourceSheetName}" tidak ditemukan, dilewati.`
+            );
+            continue;
+        }
+
+        // Get last non-empty row
+        const endRow = getLastNonEmptyRow(sourceSheet, 1);
+        if (endRow < 2) {
+            summary.warnings.push(
+                `Sheet "${sourceSheetName}" kosong atau hanya memiliki header.`
+            );
+            continue;
+        }
+
+        // Process yellow rows (add new products)
+        const newProductsCount = processYellowRowsForDay(
+            sourceSheet,
+            targetSheet
+        );
+
+        // Re-fetch endRow after potential row insertions
+        const updatedEndRow = getLastNonEmptyRow(sourceSheet, 1);
+
+        // Validate product names
+        const validationResult = validateProductNames(
+            sourceSheet,
+            targetSheet,
+            updatedEndRow
+        );
+
+        if (!validationResult.isValid) {
+            // Format error message and stop
+            let errorMsg = `Validasi gagal pada tanggal ${day} (sheet: ${sourceSheetName})!\n\n`;
+            errorMsg += `Ditemukan ${validationResult.mismatches.length} ketidakcocokan nama barang:\n\n`;
+
+            // Show first 10 mismatches
+            const displayMismatches = validationResult.mismatches.slice(0, 10);
+            displayMismatches.forEach((m) => {
+                errorMsg += `Baris ${m.row}:\n`;
+                errorMsg += `  - Source: "${m.sourceValue}"\n`;
+                errorMsg += `  - Target: "${m.targetValue}"\n\n`;
+            });
+
+            if (validationResult.mismatches.length > 10) {
+                errorMsg += `... dan ${validationResult.mismatches.length - 10} ketidakcocokan lainnya.\n`;
+            }
+
+            errorMsg += '\nProses DIHENTIKAN. Perbaiki data terlebih dahulu.';
+
+            ui.alert('Validasi Gagal', errorMsg, ui.ButtonSet.OK);
+            return;
+        }
+
+        // Calculate target column
+        const targetColumnIndex = dayToColumnIndex(day);
+
+        // Copy sales data
+        const rowsCopied = copySalesDataForDay(
+            sourceSheet,
+            targetSheet,
+            updatedEndRow,
+            targetColumnIndex
+        );
+
+        // Update summary
+        summary.daysProcessed++;
+        summary.totalNewProducts += newProductsCount;
+        summary.totalSalesRowsCopied += rowsCopied;
+    }
+
+    // Step 7: Show summary
+    let summaryMsg = `Proses selesai!\n\n`;
+    summaryMsg += `Jumlah hari diproses: ${summary.daysProcessed}\n`;
+    summaryMsg += `Total barang baru ditambahkan: ${summary.totalNewProducts}\n`;
+    summaryMsg += `Total baris penjualan disalin: ${summary.totalSalesRowsCopied}\n`;
+
+    if (summary.warnings.length > 0) {
+        summaryMsg += `\nPeringatan:\n`;
+        summary.warnings.forEach((w) => {
+            summaryMsg += `- ${w}\n`;
+        });
+    }
+
+    ui.alert('Ringkasan Proses', summaryMsg, ui.ButtonSet.OK);
 }

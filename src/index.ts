@@ -508,13 +508,22 @@ function getLastNonEmptyRow(
     sheet: GoogleAppsScript.Spreadsheet.Sheet,
     column: number = 1
 ): number {
-    const data = sheet.getRange(1, column, sheet.getMaxRows(), 1).getValues();
+    const lastRow = sheet.getLastRow();
+
+    if (lastRow === 0) {
+        return 0;
+    }
+
+    // Only fetch data up to lastRow instead of getMaxRows() (often 10000+)
+    const data = sheet.getRange(1, column, lastRow, 1).getValues();
+
+    // Find first empty cell (original behavior: returns row number of first empty)
     for (let i = 0; i < data.length; i++) {
         if (data[i][0] === '' || data[i][0] === null) {
-            return i; // i is 0-indexed, so this gives the 1-indexed row of the last non-empty cell
+            return i;
         }
     }
-    return data.length; // All rows are filled
+    return data.length;
 }
 
 // Interface for validation result
@@ -558,43 +567,55 @@ function processYellowRowsForDay(
     sourceSheet: GoogleAppsScript.Spreadsheet.Sheet,
     destSheet: GoogleAppsScript.Spreadsheet.Sheet
 ): number {
-    let currentRow = 2;
-    let processedCount = 0;
+    const startRow = 2;
+    const lastRow = sourceSheet.getLastRow();
 
-    const yellowColors = [
+    if (lastRow < startRow) {
+        return 0;
+    }
+
+    const numRows = lastRow - startRow + 1;
+
+    // BATCH READ: Get all values from columns A and B at once (1 API call)
+    const allValues = sourceSheet.getRange(startRow, 1, numRows, 2).getValues();
+
+    // BATCH READ: Get all background colors from column A (1 API call)
+    const allBackgrounds = sourceSheet
+        .getRange(startRow, 1, numRows, 1)
+        .getBackgrounds();
+
+    const yellowColors = new Set([
         '#ffff00',
         '#ffff99',
         '#fff2cc',
         '#fffacd',
         '#ffd966',
         '#f9cb9c',
-    ];
+    ]);
 
-    while (true) {
-        const cellA = sourceSheet.getRange(currentRow, 1);
-        const valueA = cellA.getValue();
+    let processedCount = 0;
 
+    // Single loop: check and write immediately (same as original)
+    for (let i = 0; i < numRows; i++) {
+        const valueA = allValues[i][0];
+
+        // Stop at first empty cell in column A (matches original behavior)
         if (!valueA || valueA === '') {
             break;
         }
 
-        const backgroundColor = cellA.getBackground().toLowerCase();
-        const isYellow = yellowColors.some(
-            (color) => backgroundColor === color.toLowerCase()
-        );
+        const backgroundColor = allBackgrounds[i][0].toLowerCase();
+        const isYellow = yellowColors.has(backgroundColor);
 
         if (isYellow) {
-            const valueB = sourceSheet.getRange(currentRow, 2).getValue();
+            const valueB = allValues[i][1];
+            const currentRow = startRow + i;
+
             destSheet.insertRowBefore(currentRow);
             destSheet.getRange(currentRow, 1).setValue(valueA);
             destSheet.getRange(currentRow, 3).setValue(valueB);
+
             processedCount++;
-        }
-
-        currentRow++;
-
-        if (currentRow > 10000) {
-            break;
         }
     }
 
@@ -719,14 +740,14 @@ function processMultipleDates(): void {
             targetSheet
         );
 
-        // Re-fetch endRow after potential row insertions
-        const updatedEndRow = getLastNonEmptyRow(sourceSheet, 1);
+        // Note: Source sheet is unchanged by processYellowRowsForDay (only target is modified)
+        // so we can reuse endRow instead of re-fetching
 
         // Validate product count
         const validationResult = validateProductCount(
             sourceSheet,
             targetSheet,
-            updatedEndRow
+            endRow
         );
 
         if (!validationResult.isValid) {
@@ -748,7 +769,7 @@ function processMultipleDates(): void {
         const rowsCopied = copySalesDataForDay(
             sourceSheet,
             targetSheet,
-            updatedEndRow,
+            endRow,
             targetColumnIndex
         );
 

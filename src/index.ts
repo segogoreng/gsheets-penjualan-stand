@@ -509,26 +509,23 @@ function getLastNonEmptyRow(
     column: number = 1
 ): number {
     const data = sheet.getRange(1, column, sheet.getMaxRows(), 1).getValues();
-    for (let i = data.length - 1; i >= 0; i--) {
-        if (data[i][0] !== '' && data[i][0] !== null) {
-            return i + 1;
+    for (let i = 0; i < data.length; i++) {
+        if (data[i][0] === '' || data[i][0] === null) {
+            return i; // i is 0-indexed, so this gives the 1-indexed row of the last non-empty cell
         }
     }
-    return 0;
+    return data.length; // All rows are filled
 }
 
 // Interface for validation result
 interface ValidationResult {
     isValid: boolean;
-    mismatches: Array<{
-        row: number;
-        sourceValue: string;
-        targetValue: string;
-    }>;
+    sourceCount: number;
+    targetCount: number;
 }
 
-// Validate that product names (column A) match between source and target sheets
-function validateProductNames(
+// Validate that product count matches between source and target sheets
+function validateProductCount(
     sourceSheet: GoogleAppsScript.Spreadsheet.Sheet,
     targetSheet: GoogleAppsScript.Spreadsheet.Sheet,
     endRow: number
@@ -541,29 +538,18 @@ function validateProductNames(
         .getRange(startRow, 1, endRow - startRow + 1, 1)
         .getValues();
 
-    const mismatches: ValidationResult['mismatches'] = [];
-
-    for (let i = 0; i < sourceNames.length; i++) {
-        const sourceVal = String(sourceNames[i][0]).trim();
-        const targetVal = String(targetNames[i][0]).trim();
-
-        // Skip if both are empty
-        if (sourceVal === '' && targetVal === '') {
-            continue;
-        }
-
-        if (sourceVal !== targetVal) {
-            mismatches.push({
-                row: startRow + i,
-                sourceValue: sourceVal,
-                targetValue: targetVal,
-            });
-        }
-    }
+    // Count non-empty product names
+    const sourceCount = sourceNames.filter(
+        (row) => String(row[0]).trim() !== ''
+    ).length;
+    const targetCount = targetNames.filter(
+        (row) => String(row[0]).trim() !== ''
+    ).length;
 
     return {
-        isValid: mismatches.length === 0,
-        mismatches,
+        isValid: sourceCount === targetCount,
+        sourceCount,
+        targetCount,
     };
 }
 
@@ -736,31 +722,20 @@ function processMultipleDates(): void {
         // Re-fetch endRow after potential row insertions
         const updatedEndRow = getLastNonEmptyRow(sourceSheet, 1);
 
-        // Validate product names
-        const validationResult = validateProductNames(
+        // Validate product count
+        const validationResult = validateProductCount(
             sourceSheet,
             targetSheet,
             updatedEndRow
         );
 
         if (!validationResult.isValid) {
-            // Format error message and stop
-            let errorMsg = `Validasi gagal pada tanggal ${day} (sheet: ${sourceSheetName})!\n\n`;
-            errorMsg += `Ditemukan ${validationResult.mismatches.length} ketidakcocokan nama barang:\n\n`;
-
-            // Show first 10 mismatches
-            const displayMismatches = validationResult.mismatches.slice(0, 10);
-            displayMismatches.forEach((m) => {
-                errorMsg += `Baris ${m.row}:\n`;
-                errorMsg += `  - Source: "${m.sourceValue}"\n`;
-                errorMsg += `  - Target: "${m.targetValue}"\n\n`;
-            });
-
-            if (validationResult.mismatches.length > 10) {
-                errorMsg += `... dan ${validationResult.mismatches.length - 10} ketidakcocokan lainnya.\n`;
-            }
-
-            errorMsg += '\nProses DIHENTIKAN. Perbaiki data terlebih dahulu.';
+            const errorMsg =
+                `Validasi gagal pada tanggal ${day} (sheet: ${sourceSheetName})!\n\n` +
+                `Jumlah barang tidak sama:\n` +
+                `  - Source: ${validationResult.sourceCount} barang\n` +
+                `  - Target: ${validationResult.targetCount} barang\n\n` +
+                `Proses DIHENTIKAN. Perbaiki data terlebih dahulu.`;
 
             ui.alert('Validasi Gagal', errorMsg, ui.ButtonSet.OK);
             return;

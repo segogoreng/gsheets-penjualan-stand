@@ -62,7 +62,7 @@ When asked to ask clarifying questions, use multiple choice format instead of op
 
 After making code changes, always run the following to verify everything works:
 
-1. `npm run format` - Format source files using prettier
-2. `npm run lint` - Check for linting errors
+1. `npm run lint` - Check for linting errors
+2. `npm run format` - Format source files using prettier
 3. `npm run build` - Verify the build succeeds
 4. `npm test` - Run unit tests

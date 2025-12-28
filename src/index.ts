@@ -13,8 +13,7 @@ function onOpen(): void {
     // Add a new menu to the spreadsheet.
     ui.createMenu('Custom Menu')
         .addItem('Clear Ranges', 'hapusNilaiDariRentang')
-        .addItem('subtotal', 'setFormulasBatch')
-        .addItem('profit', 'setProfitBatch')
+        .addItem('Isi Formula Subtotal dan Profit', 'setAllFormulas')
         .addItem('isi formula sticker', 'isiFormulasticker')
         .addItem('Profit Sticker', 'isiFormulaProfitSticker')
         .addItem(
@@ -116,11 +115,10 @@ function hapusNilaiDariRentang(): void {
     });
 }
 
-function setFormulasBatch(): void {
+function setFormulasBatch(endRow: number): void {
     const sheet: GoogleAppsScript.Spreadsheet.Sheet =
         SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     const startRow: number = 2;
-    const endRow: number = 380;
     const columns: string[] = [
         'E',
         'H',
@@ -201,11 +199,10 @@ function setFormulasBatch(): void {
     }
 }
 
-function setProfitBatch(): void {
+function setProfitBatch(endRow: number): void {
     const sheet: GoogleAppsScript.Spreadsheet.Sheet =
         SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     const startRow: number = 2;
-    const endRow: number = 380;
     const columns: string[] = [
         'F',
         'I',
@@ -320,6 +317,27 @@ function setProfitBatch(): void {
             .getRange(col + startRow + ':' + col + endRow)
             .setFormulas(formulas);
     }
+}
+
+function setAllFormulas(): void {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+
+    // Get last non-empty row in column A (product names)
+    const lastProductRow = getLastNonEmptyRow(sheet, 1);
+
+    // If no products found, show error
+    if (lastProductRow < 2) {
+        SpreadsheetApp.getUi().alert('Tidak ada produk ditemukan.');
+        return;
+    }
+
+    // Set both formulas with detected end row
+    setFormulasBatch(lastProductRow);
+    setProfitBatch(lastProductRow);
+
+    SpreadsheetApp.getUi().alert(
+        `Formula subtotal dan profit berhasil diisi untuk baris 2 sampai ${lastProductRow}.`
+    );
 }
 
 function isiFormulasticker(): void {

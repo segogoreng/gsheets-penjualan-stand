@@ -19,7 +19,7 @@ export default [
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
-          varsIgnorePattern: '^(onOpen|copyDynamicRange|hapusNilaiDariRentang|setFormulasBatch|setProfitBatch|isiFormulasticker|isiFormulaProfitSticker|processYellowRows)$',
+          varsIgnorePattern: '^(onOpen|copyDynamicRange|hapusNilaiDariRentang|setAllFormulas|isiFormulasticker|isiFormulaProfitSticker|processYellowRows|processMultipleDates)$',
         },
       ],
     },

@@ -554,16 +554,27 @@ interface ValidationResult {
 // Validate that product count matches between source and target sheets
 function validateProductCount(
     sourceSheet: GoogleAppsScript.Spreadsheet.Sheet,
-    targetSheet: GoogleAppsScript.Spreadsheet.Sheet,
-    endRow: number
+    targetSheet: GoogleAppsScript.Spreadsheet.Sheet
 ): ValidationResult {
     const startRow = 2;
-    const sourceNames = sourceSheet
-        .getRange(startRow, 1, endRow - startRow + 1, 1)
-        .getValues();
-    const targetNames = targetSheet
-        .getRange(startRow, 1, endRow - startRow + 1, 1)
-        .getValues();
+
+    // Get the last non-empty row for EACH sheet independently
+    const sourceEndRow = getLastNonEmptyRow(sourceSheet, 1);
+    const targetEndRow = getLastNonEmptyRow(targetSheet, 1);
+
+    // Read product names up to each sheet's own last row
+    const sourceNames =
+        sourceEndRow >= startRow
+            ? sourceSheet
+                  .getRange(startRow, 1, sourceEndRow - startRow + 1, 1)
+                  .getValues()
+            : [];
+    const targetNames =
+        targetEndRow >= startRow
+            ? targetSheet
+                  .getRange(startRow, 1, targetEndRow - startRow + 1, 1)
+                  .getValues()
+            : [];
 
     // Count non-empty product names
     const sourceCount = sourceNames.filter(
@@ -762,11 +773,7 @@ function processMultipleDates(): void {
         // so we can reuse endRow instead of re-fetching
 
         // Validate product count
-        const validationResult = validateProductCount(
-            sourceSheet,
-            targetSheet,
-            endRow
-        );
+        const validationResult = validateProductCount(sourceSheet, targetSheet);
 
         if (!validationResult.isValid) {
             const errorMsg =

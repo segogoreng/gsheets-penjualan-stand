@@ -554,16 +554,27 @@ interface ValidationResult {
 // Validate that product count matches between source and target sheets
 function validateProductCount(
     sourceSheet: GoogleAppsScript.Spreadsheet.Sheet,
-    targetSheet: GoogleAppsScript.Spreadsheet.Sheet,
-    endRow: number
+    targetSheet: GoogleAppsScript.Spreadsheet.Sheet
 ): ValidationResult {
     const startRow = 2;
-    const sourceNames = sourceSheet
-        .getRange(startRow, 1, endRow - startRow + 1, 1)
-        .getValues();
-    const targetNames = targetSheet
-        .getRange(startRow, 1, endRow - startRow + 1, 1)
-        .getValues();
+
+    // Get the last non-empty row for EACH sheet independently
+    const sourceEndRow = getLastNonEmptyRow(sourceSheet, 1);
+    const targetEndRow = getLastNonEmptyRow(targetSheet, 1);
+
+    // Read product names up to each sheet's own last row
+    const sourceNames =
+        sourceEndRow >= startRow
+            ? sourceSheet
+                  .getRange(startRow, 1, sourceEndRow - startRow + 1, 1)
+                  .getValues()
+            : [];
+    const targetNames =
+        targetEndRow >= startRow
+            ? targetSheet
+                  .getRange(startRow, 1, targetEndRow - startRow + 1, 1)
+                  .getValues()
+            : [];
 
     // Count non-empty product names
     const sourceCount = sourceNames.filter(
@@ -578,6 +589,66 @@ function validateProductCount(
         sourceCount,
         targetCount,
     };
+}
+
+// Yellow color codes used to identify new products
+const YELLOW_COLORS = new Set([
+    '#ffff00',
+    '#ffff99',
+    '#fff2cc',
+    '#fffacd',
+    '#ffd966',
+    '#f9cb9c',
+]);
+
+// Validate product count before processing yellow rows
+function validateProductCountBeforeYellowRows(
+    sourceSheet: GoogleAppsScript.Spreadsheet.Sheet,
+    targetSheet: GoogleAppsScript.Spreadsheet.Sheet
+): ValidationResult {
+    const startRow = 2;
+
+    const sourceEndRow = getLastNonEmptyRow(sourceSheet, 1);
+    const targetEndRow = getLastNonEmptyRow(targetSheet, 1);
+
+    if (sourceEndRow < startRow) {
+        return { isValid: true, sourceCount: 0, targetCount: 0 };
+    }
+
+    const sourceNumRows = sourceEndRow - startRow + 1;
+
+    // Batch read values and backgrounds from source
+    const sourceValues = sourceSheet
+        .getRange(startRow, 1, sourceNumRows, 1)
+        .getValues();
+    const sourceBackgrounds = sourceSheet
+        .getRange(startRow, 1, sourceNumRows, 1)
+        .getBackgrounds();
+
+    // Count non-yellow rows in source (stop at first empty)
+    let sourceCount = 0;
+    for (let i = 0; i < sourceNumRows; i++) {
+        const value = sourceValues[i][0];
+        if (!value || String(value).trim() === '') break;
+
+        const bgColor = sourceBackgrounds[i][0].toLowerCase();
+        if (!YELLOW_COLORS.has(bgColor)) {
+            sourceCount++;
+        }
+    }
+
+    // Count target rows
+    const targetNames =
+        targetEndRow >= startRow
+            ? targetSheet
+                  .getRange(startRow, 1, targetEndRow - startRow + 1, 1)
+                  .getValues()
+            : [];
+    const targetCount = targetNames.filter(
+        (row) => String(row[0]).trim() !== ''
+    ).length;
+
+    return { isValid: sourceCount === targetCount, sourceCount, targetCount };
 }
 
 // Process yellow rows for a single day (extracted from processYellowRows, no UI prompts)
@@ -602,15 +673,6 @@ function processYellowRowsForDay(
         .getRange(startRow, 1, numRows, 1)
         .getBackgrounds();
 
-    const yellowColors = new Set([
-        '#ffff00',
-        '#ffff99',
-        '#fff2cc',
-        '#fffacd',
-        '#ffd966',
-        '#f9cb9c',
-    ]);
-
     let processedCount = 0;
 
     // Single loop: check and write immediately (same as original)
@@ -623,7 +685,7 @@ function processYellowRowsForDay(
         }
 
         const backgroundColor = allBackgrounds[i][0].toLowerCase();
-        const isYellow = yellowColors.has(backgroundColor);
+        const isYellow = YELLOW_COLORS.has(backgroundColor);
 
         if (isYellow) {
             const valueB = allValues[i][1];
@@ -752,6 +814,23 @@ function processMultipleDates(): void {
             continue;
         }
 
+        // Validate product count before processing yellow rows
+        const preValidation = validateProductCountBeforeYellowRows(
+            sourceSheet,
+            targetSheet
+        );
+        if (!preValidation.isValid) {
+            const errorMsg =
+                `Validasi gagal pada tanggal ${day} (sheet: ${sourceSheetName})!\n\n` +
+                `Jumlah barang (tanpa barang baru) tidak sama:\n` +
+                `  - Source (tanpa kuning): ${preValidation.sourceCount} barang\n` +
+                `  - Target: ${preValidation.targetCount} barang\n\n` +
+                `Proses DIHENTIKAN. Perbaiki data terlebih dahulu.`;
+
+            ui.alert('Validasi Gagal', errorMsg, ui.ButtonSet.OK);
+            return;
+        }
+
         // Process yellow rows (add new products)
         const newProductsCount = processYellowRowsForDay(
             sourceSheet,
@@ -762,11 +841,7 @@ function processMultipleDates(): void {
         // so we can reuse endRow instead of re-fetching
 
         // Validate product count
-        const validationResult = validateProductCount(
-            sourceSheet,
-            targetSheet,
-            endRow
-        );
+        const validationResult = validateProductCount(sourceSheet, targetSheet);
 
         if (!validationResult.isValid) {
             const errorMsg =

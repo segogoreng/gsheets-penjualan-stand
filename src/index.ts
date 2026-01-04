@@ -8,6 +8,41 @@ import {
 const sourceSpreadsheetId = '1B5kwiYri3x3qNde1gnpi9K9Bwk3Ruh8JtGuKptBz12Q'; // ID file sumber "Copy of YUMBENTO PTC AGUSTUS 2025"
 const targetSheetName = "des'25"; // perlu diganti sesuai bulan yg dikerjakan sesuai nama sheet tujuan
 
+// Quantity columns for each day (D, G, J... CP) - 31 days
+const QUANTITY_COLUMNS: string[] = [
+    'D',
+    'G',
+    'J',
+    'M',
+    'P',
+    'S',
+    'V',
+    'Y',
+    'AB',
+    'AE',
+    'AH',
+    'AK',
+    'AN',
+    'AQ',
+    'AT',
+    'AW',
+    'AZ',
+    'BC',
+    'BF',
+    'BI',
+    'BL',
+    'BO',
+    'BR',
+    'BU',
+    'BX',
+    'CA',
+    'CD',
+    'CG',
+    'CJ',
+    'CM',
+    'CP',
+];
+
 function onOpen(): void {
     const ui = SpreadsheetApp.getUi();
     // Add a new menu to the spreadsheet.
@@ -20,6 +55,7 @@ function onOpen(): void {
             'Proses Data Penjualan (Multi-Tanggal)',
             'processMultipleDates'
         )
+        .addItem('Buat Laporan Penjualan', 'buatLaporanPenjualan')
         .addSeparator()
         .addItem('Masukkan data penjualan (Manual)', 'copyDynamicRange')
         .addItem('masukkan barang baru (Manual)', 'processYellowRows')
@@ -521,27 +557,27 @@ function processYellowRows(): void {
     }
 }
 
-// Helper: Find last non-empty row in a column
+// Helper: Find last non-empty row in a column (skips header row 1)
 function getLastNonEmptyRow(
     sheet: GoogleAppsScript.Spreadsheet.Sheet,
     column: number = 1
 ): number {
     const lastRow = sheet.getLastRow();
 
-    if (lastRow === 0) {
-        return 0;
+    if (lastRow <= 1) {
+        return 1; // Only header or empty sheet
     }
 
-    // Only fetch data up to lastRow instead of getMaxRows() (often 10000+)
-    const data = sheet.getRange(1, column, lastRow, 1).getValues();
+    // Fetch data starting from row 2 (skip header)
+    const data = sheet.getRange(2, column, lastRow - 1, 1).getValues();
 
-    // Find first empty cell (original behavior: returns row number of first empty)
+    // Find first empty cell, return its row number
     for (let i = 0; i < data.length; i++) {
         if (data[i][0] === '' || data[i][0] === null) {
-            return i;
+            return i + 1; // Convert index to row number (i=0 → row 2, so return i+1 for "last non-empty")
         }
     }
-    return data.length;
+    return lastRow; // All rows have data
 }
 
 // Interface for validation result
@@ -886,4 +922,57 @@ function processMultipleDates(): void {
     }
 
     ui.alert('Ringkasan Proses', summaryMsg, ui.ButtonSet.OK);
+}
+
+function buatLaporanPenjualan(): void {
+    const ui = SpreadsheetApp.getUi();
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sourceSheet = ss.getActiveSheet();
+    const sourceSheetName = sourceSheet.getName();
+
+    // 1. Get last product row using existing helper
+    const lastRow = getLastNonEmptyRow(sourceSheet, 1);
+    if (lastRow < 2) {
+        ui.alert('Error', 'Tidak ada produk ditemukan.', ui.ButtonSet.OK);
+        return;
+    }
+
+    // 2. Build and set Total formulas in column CV (row 2 to lastRow)
+    //    Formula: =D{row}+G{row}+J{row}+...+CP{row}
+    const numRows = lastRow - 1;
+    const formulas: string[][] = [];
+    for (let row = 2; row <= lastRow; row++) {
+        const formula =
+            '=' + QUANTITY_COLUMNS.map((col) => col + row).join('+');
+        formulas.push([formula]);
+    }
+    sourceSheet.getRange(2, 100, numRows, 1).setFormulas(formulas); // CV = column 100
+
+    // 3. Create/overwrite report sheet
+    const reportSheetName = `Laporan ${sourceSheetName}`;
+    let reportSheet = ss.getSheetByName(reportSheetName);
+    if (reportSheet) {
+        ss.deleteSheet(reportSheet);
+    }
+    reportSheet = ss.insertSheet(reportSheetName);
+
+    // 4. Set headers
+    reportSheet.getRange(1, 1, 1, 2).setValues([['Nama Barang', 'Total']]);
+
+    // 5. Copy product names (col A) and total values (col CV)
+    const productNames = sourceSheet.getRange(2, 1, numRows, 1).getValues();
+    const totalValues = sourceSheet.getRange(2, 100, numRows, 1).getValues();
+
+    // Combine into 2-column array
+    const reportData = productNames.map(
+        (name: unknown[], i: number): unknown[] => [name[0], totalValues[i][0]]
+    );
+    reportSheet.getRange(2, 1, reportData.length, 2).setValues(reportData);
+
+    // 6. Show success message
+    ui.alert(
+        'Sukses',
+        `Laporan "${reportSheetName}" berhasil dibuat dengan ${reportData.length} produk.`,
+        ui.ButtonSet.OK
+    );
 }

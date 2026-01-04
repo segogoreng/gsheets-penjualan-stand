@@ -956,8 +956,9 @@ function buatLaporanPenjualan(): void {
     }
     reportSheet = ss.insertSheet(reportSheetName);
 
-    // 4. Set headers
+    // 4. Set headers and column widths
     reportSheet.getRange(1, 1, 1, 2).setValues([['Nama Barang', 'Total']]);
+    reportSheet.setColumnWidth(1, 350); // Make first column wider for product names
 
     // 5. Copy product names (col A) and total values (col CV)
     const productNames = sourceSheet.getRange(2, 1, numRows, 1).getValues();
